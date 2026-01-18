@@ -6,6 +6,15 @@ Projekt simulira raspodjelu zadataka dostave u gradu Zadru pomoću aukcijskog pr
 
 Napomena: SPADE komunikacija zahtijeva XMPP poslužitelj (npr. Prosody) i korisničke račune za dispatchera i vozila.
 
+### XMPP (SPADE) postavke
+Projekt pretpostavlja XMPP korisnike (primjer):
+- dispatcher@localhost
+- vozilo1@localhost, vozilo2@localhost, vozilo3@localhost, vozilo4@localhost
+
+Dispatcher JID se može postaviti varijablom okruženja `DISPATCHER_JID` (zadano: `dispatcher@localhost`).
+Bez pokrenutog XMPP poslužitelja i tih računa, `run_batch.py` se neće moći izvršiti.
+
+
 ## Struktura projekta
 - dispatcher.py – objavljuje zadatke, prikuplja bidove i dodjeljuje zadatke vozilima
 - vehicle.py – vozila računaju bid (nearest/marginal) i izvršavaju rute
@@ -32,9 +41,6 @@ Napomena: SPADE komunikacija zahtijeva XMPP poslužitelj (npr. Prosody) i korisn
 3) Instaliraj ovisnosti:
    pip install -r requirements.txt
 
-## Quick start
-1) source .venv/bin/activate
-2) python run_batch.py
 
 ## Pokretanje batch eksperimenata
 1) Aktiviraj virtualno okruženje:
@@ -99,6 +105,4 @@ Datoteka `data/zadar_drive.graphml` generirana je pomoću OSMnx iz OpenStreetMap
 ## Licenca
 Projekt je objavljen pod licencom GPL-3.0 (vidi LICENSE).
 
-## Poveznica na kod
-https://github.com/tradic21/vas_fleet_auction
 
