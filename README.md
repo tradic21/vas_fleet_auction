@@ -1,6 +1,10 @@
 # vas_fleet_auction
 
+Repozitorij: https://github.com/tradic21/vas_fleet_auction
+
 Projekt simulira raspodjelu zadataka dostave u gradu Zadru pomoću aukcijskog pristupa: dispatcher objavljuje zadatke, a vozila šalju ponude (bid). Uspoređuju se dvije strategije određivanja bida: **nearest** i **marginal**.
+
+Napomena: SPADE komunikacija zahtijeva XMPP poslužitelj (npr. Prosody) i korisničke račune za dispatchera i vozila.
 
 ## Struktura projekta
 - dispatcher.py – objavljuje zadatke, prikuplja bidove i dodjeljuje zadatke vozilima
@@ -15,7 +19,8 @@ Projekt simulira raspodjelu zadataka dostave u gradu Zadru pomoću aukcijskog pr
 
 ## Preduvjeti
 - Python 3.10+ (ili verzija koju koristiš u projektu)
-- Paketi: spade, osmnx, networkx, pandas, matplotlib
+- Ovisnosti su navedene u `requirements.txt`
+
 
 ## Instalacija
 1) Kreiraj virtualno okruženje:
@@ -25,7 +30,11 @@ Projekt simulira raspodjelu zadataka dostave u gradu Zadru pomoću aukcijskog pr
    source .venv/bin/activate
 
 3) Instaliraj ovisnosti:
-   pip install spade osmnx networkx pandas matplotlib
+   pip install -r requirements.txt
+
+## Quick start
+1) source .venv/bin/activate
+2) python run_batch.py
 
 ## Pokretanje batch eksperimenata
 1) Aktiviraj virtualno okruženje:
@@ -45,6 +54,8 @@ Viewer čita map_viewer/state.json i prikazuje:
 - pozicije vozila + status (FREE/BUSY)
 - trenutni task (pickup/dropoff) i rutu
 - markere završenih dostava (deliveries)
+
+Viewer očekuje da se datoteka `map_viewer/state.json` kontinuirano ažurira dok simulacija radi (to rade `dispatcher.py` i `vehicle.py` preko `state_store.py`).
 
 Pokretanje lokalnog servera:
 1) Uđi u mapu viewera:
@@ -70,8 +81,20 @@ Zbog toga marginal često bolje rasporedi zadatke kad su rokovi tijesni i vozila
 - avg_assignment_time_sec – prosječno vrijeme dodjele zadatka (aukcije)
 - total_distance – ukupno prijeđena udaljenost (m)
 
+## Rezultati i grafovi
+Skripte za izradu grafova:
+- `plot_on_time.py`
+- `graf_avg_lateness_all_sec.py`
+- `graf_avg_lateness_seed.py`
+
+Primjer pokretanja (nakon batcha):
+1) source .venv/bin/activate
+2) python plot_on_time.py
+
+
 ## Licenca
 Projekt je objavljen pod licencom GPL-3.0 (vidi LICENSE).
 
 ## Poveznica na kod
 https://github.com/tradic21/vas_fleet_auction
+
