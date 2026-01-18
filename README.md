@@ -91,6 +91,10 @@ Primjer pokretanja (nakon batcha):
 1) source .venv/bin/activate
 2) python plot_on_time.py
 
+## Podaci (OpenStreetMap)
+Datoteka `data/zadar_drive.graphml` generirana je pomoću OSMnx iz OpenStreetMap podataka
+(© OpenStreetMap contributors, ODbL). Graf se može ponovno generirati skriptom `build_zadar_graph.py`.
+
 
 ## Licenca
 Projekt je objavljen pod licencom GPL-3.0 (vidi LICENSE).
