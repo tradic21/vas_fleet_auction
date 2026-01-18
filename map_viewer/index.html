@@ -1,0 +1,684 @@
+<!doctype html>
+<html lang="hr">
+<head>
+  <meta charset="utf-8" />
+  <title>Zadar Fleet Viewer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    html, body { height: 100%; margin: 0; }
+    #map { height: 100%; }
+
+    .panel {
+      position: absolute;
+      z-index: 999;
+      top: 10px; left: 10px;
+      background: rgba(255,255,255,0.94);
+      padding: 10px 12px;
+      border-radius: 12px;
+      font-family: system-ui, sans-serif;
+      font-size: 14px;
+      line-height: 1.25;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+      max-width: 460px;
+      user-select: none;
+    }
+    .small { font-size: 12px; opacity: 0.85; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      border: 1px solid rgba(0,0,0,0.12);
+      background: rgba(0,0,0,0.04);
+      margin-left: 6px;
+    }
+    .badge.green { background: rgba(46, 204, 113, 0.15); border-color: rgba(46, 204, 113, 0.35); }
+    .badge.red   { background: rgba(231, 76, 60, 0.15); border-color: rgba(231, 76, 60, 0.35); }
+    .badge.blue  { background: rgba(52, 152, 219, 0.15); border-color: rgba(52, 152, 219, 0.35); }
+    .badge.gray  { background: rgba(127, 140, 141, 0.12); border-color: rgba(127, 140, 141, 0.28); }
+
+    .legend {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(0,0,0,0.08);
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px 10px;
+      font-size: 12px;
+      opacity: 0.92;
+    }
+
+    .lg {
+      display: inline-block;
+      width: 12px; height: 12px;
+      margin-right: 6px;
+      vertical-align: -2px;
+      border: 2px solid #2c3e50;
+      box-sizing: border-box;
+    }
+    .lg.circle { border-radius: 50%; }
+    .lg.square { border-radius: 2px; }
+    .lg.diamond { transform: rotate(45deg); border-radius: 2px; }
+    .lg.triangle {
+      width: 0; height: 0;
+      border-left: 7px solid transparent;
+      border-right: 7px solid transparent;
+      border-bottom: 12px solid #8e44ad;
+      border-top: 0;
+      border-radius: 0;
+      margin-right: 6px;
+      vertical-align: -1px;
+      position: relative;
+    }
+
+    .controls {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(0,0,0,0.08);
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      align-items: center;
+      font-size: 12px;
+    }
+    .controls label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+    }
+    .controls input[type="checkbox"] { transform: translateY(1px); }
+
+    .fleet {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(0,0,0,0.08);
+      font-size: 12px;
+      max-height: 240px;
+      overflow: auto;
+    }
+    .fleet .row {
+      padding: 6px 0;
+      border-bottom: 1px dashed rgba(0,0,0,0.08);
+    }
+    .fleet .row:last-child { border-bottom: 0; }
+    .fleet .hdr {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .fleet .jid { font-weight: 600; }
+    .fleet .sub {
+      margin-top: 4px;
+      opacity: 0.9;
+      line-height: 1.25;
+    }
+    .fleet .chips { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+    .chip {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 999px;
+      border: 1px solid rgba(0,0,0,0.10);
+      background: rgba(0,0,0,0.04);
+      font-size: 11px;
+    }
+    .chip.blue { background: rgba(52, 152, 219, 0.12); border-color: rgba(52,152,219,0.30); }
+    .chip.green{ background: rgba(46, 204, 113, 0.12); border-color: rgba(46,204,113,0.30); }
+    .chip.red  { background: rgba(231, 76, 60, 0.12); border-color: rgba(231,76,60,0.30); }
+
+    .shape-icon {
+      width: 18px;
+      height: 18px;
+      transform: translate(-9px, -9px);
+    }
+    .shape-icon svg {
+      width: 18px;
+      height: 18px;
+      display: block;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="map"></div>
+
+  <div class="panel" id="panel">
+    <div><b>Zadar Fleet Viewer</b></div>
+    <div class="small" id="status">učitavanje…</div>
+
+    <div class="controls">
+      <label><input id="toggleRoutes" type="checkbox"> Show routes</label>
+      <label><input id="toggleDeliveries" type="checkbox"> Show deliveries</label>
+      <label><input id="toggleSmooth" type="checkbox"> Smooth movement</label>
+    </div>
+
+    <div class="fleet" id="fleet">
+      <div class="small">učitavanje vozila…</div>
+    </div>
+
+    <div class="legend">
+      <div><span class="lg circle" style="background:#2ecc71"></span>Vozilo FREE</div>
+      <div><span class="lg circle" style="background:#e74c3c"></span>Vozilo BUSY</div>
+      <div><span class="lg square" style="background:#f1c40f"></span>PICKUP (kvadrat)</div>
+      <div><span class="lg triangle"></span>DROPOFF (trokut)</div>
+      <div><span class="lg diamond" style="background:#2ecc71"></span>DELIVERED ON_TIME (romb)</div>
+      <div><span class="lg diamond" style="background:#e74c3c"></span>DELIVERED LATE (romb)</div>
+    </div>
+  </div>
+
+<script>
+
+  const map = L.map('map').setView([44.11972, 15.24222], 13);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap'
+  }).addTo(map);
+
+
+  const LS_ROUTES = "viewer_show_routes";
+  const LS_DELIV  = "viewer_show_deliveries";
+  const LS_SMOOTH = "viewer_smooth_movement";
+
+  const toggleRoutesEl = document.getElementById("toggleRoutes");
+  const toggleDeliveriesEl = document.getElementById("toggleDeliveries");
+  const toggleSmoothEl = document.getElementById("toggleSmooth");
+  const fleetEl = document.getElementById("fleet");
+
+  function readBool(key, fallback=true) {
+    const v = localStorage.getItem(key);
+    if (v === null) return fallback;
+    return v === "1";
+  }
+  function writeBool(key, value) {
+    localStorage.setItem(key, value ? "1" : "0");
+  }
+
+  toggleRoutesEl.checked = readBool(LS_ROUTES, true);
+  toggleDeliveriesEl.checked = readBool(LS_DELIV, true);
+  toggleSmoothEl.checked = readBool(LS_SMOOTH, true);
+
+  toggleRoutesEl.addEventListener("change", () => {
+    writeBool(LS_ROUTES, toggleRoutesEl.checked);
+    if (!toggleRoutesEl.checked && routeLine) { map.removeLayer(routeLine); routeLine = null; }
+  });
+
+  toggleDeliveriesEl.addEventListener("change", () => {
+    writeBool(LS_DELIV, toggleDeliveriesEl.checked);
+    if (!toggleDeliveriesEl.checked) {
+      for (const m of deliveryMarkers.values()) map.removeLayer(m);
+      deliveryMarkers.clear();
+    }
+  });
+
+  toggleSmoothEl.addEventListener("change", () => {
+    writeBool(LS_SMOOTH, toggleSmoothEl.checked);
+  });
+
+  function showRoutes() { return !!toggleRoutesEl.checked; }
+  function showDeliveries() { return !!toggleDeliveriesEl.checked; }
+  function smoothMovement() { return !!toggleSmoothEl.checked; }
+
+
+  const vehicleMarkers = new Map();        
+  const deliveryMarkers = new Map();       
+
+  let pickupMarker = null;
+  let dropoffMarker = null;
+  let routeLine = null;
+
+  let firstFitDone = false;
+
+  
+  const animState = new Map();
+  const ANIM_DUR_MS = 500;
+
+
+  function hashString(str) {
+    let h = 0;
+    for (let i = 0; i < str.length; i++) {
+      h = ((h << 5) - h) + str.charCodeAt(i);
+      h |= 0;
+    }
+    return Math.abs(h);
+  }
+
+  function colorForVehicle(jid) {
+    const palette = [
+      "#1abc9c", "#3498db", "#9b59b6", "#e67e22",
+      "#2ecc71", "#f39c12", "#e74c3c", "#16a085",
+      "#2980b9", "#8e44ad", "#d35400", "#c0392b"
+    ];
+    return palette[hashString(String(jid || "")) % palette.length];
+  }
+
+  function makeVehicleStyle(busy, isWinner=false) {
+    const baseFill = busy ? '#e74c3c' : '#2ecc71';
+    return {
+      radius: isWinner ? 9 : 7,
+      fillColor: baseFill,
+      color: isWinner ? '#000000' : '#2c3e50',
+      weight: isWinner ? 3 : 2,
+      opacity: 1,
+      fillOpacity: 0.95
+    };
+  }
+
+  function svgIcon(html, className="shape-icon") {
+    return L.divIcon({
+      className: className,
+      html: html,
+      iconSize: [18, 18],
+      iconAnchor: [9, 9],
+      popupAnchor: [0, -10]
+    });
+  }
+
+  function squareIcon(fill, stroke="#2c3e50") {
+    return svgIcon(
+      `<div class="shape-icon">
+        <svg viewBox="0 0 18 18" aria-hidden="true">
+          <rect x="3" y="3" width="12" height="12" rx="2"
+                fill="${fill}" stroke="${stroke}" stroke-width="2"></rect>
+        </svg>
+      </div>`
+    );
+  }
+
+  function triangleIcon(fill, stroke="#2c3e50") {
+    return svgIcon(
+      `<div class="shape-icon">
+        <svg viewBox="0 0 18 18" aria-hidden="true">
+          <polygon points="9,2 16,16 2,16"
+                   fill="${fill}" stroke="${stroke}" stroke-width="2" stroke-linejoin="round"></polygon>
+        </svg>
+      </div>`
+    );
+  }
+
+  function diamondIcon(fill, stroke="#2c3e50") {
+    return svgIcon(
+      `<div class="shape-icon">
+        <svg viewBox="0 0 18 18" aria-hidden="true">
+          <polygon points="9,1 17,9 9,17 1,9"
+                   fill="${fill}" stroke="${stroke}" stroke-width="2" stroke-linejoin="round"></polygon>
+        </svg>
+      </div>`
+    );
+  }
+
+  function fmtSec(s) {
+    if (typeof s !== 'number' || !isFinite(s)) return '—';
+    return s.toFixed(1) + 's';
+  }
+
+  function escapeHtml(s) {
+    return String(s ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function shortJid(jid) {
+    const s = String(jid || "");
+    return s.includes("@") ? s.split("@")[0] : s;
+  }
+
+  function isLatLonArray(x) {
+    return Array.isArray(x) && x.length === 2 &&
+           typeof x[0] === "number" && typeof x[1] === "number" &&
+           isFinite(x[0]) && isFinite(x[1]);
+  }
+
+  
+  function toLatLon(x) {
+    if (!x) return null;
+    if (isLatLonArray(x)) return [x[0], x[1]];
+    if (typeof x.lat === "number" && typeof x.lon === "number") return [x.lat, x.lon];
+    if (typeof x[0] === "number" && typeof x[1] === "number") return [x[0], x[1]];
+    return null;
+  }
+
+ 
+  function normalizeVehicles(state) {
+    const out = {}; 
+    if (state && Array.isArray(state.vehicles)) {
+      for (const v of state.vehicles) {
+        if (v && v.jid) out[String(v.jid)] = v;
+      }
+      return out;
+    }
+    if (state && state.vehicles && typeof state.vehicles === "object" && !Array.isArray(state.vehicles)) {
+      return state.vehicles;
+    }
+    if (state && state.vehicles_by_jid && typeof state.vehicles_by_jid === "object") {
+      return state.vehicles_by_jid;
+    }
+    return out;
+  }
+
+  function normalizeTask(state) {
+    const t = state && state.task;
+    if (!t || typeof t !== "object") return null;
+
+    
+    const pickup = toLatLon(t.pickup) || toLatLon(t.pickup_latlon);
+    const dropoff = toLatLon(t.dropoff) || toLatLon(t.dropoff_latlon);
+
+    
+    const route = Array.isArray(t.route_latlon) ? t.route_latlon
+                : (Array.isArray(t.route) ? t.route : null);
+
+    return {
+      ...t,
+      pickup_ll: pickup,
+      dropoff_ll: dropoff,
+      route_ll: route
+    };
+  }
+
+  function normalizeDeliveries(state) {
+    const arr = (state && Array.isArray(state.deliveries)) ? state.deliveries : [];
+    return arr.map(d => {
+      const onTime = (typeof d.on_time === "boolean") ? d.on_time : (d.status === "ON_TIME");
+      const status = onTime ? "ON_TIME" : "LATE";
+      const dist = (typeof d.distance_m === "number") ? d.distance_m
+                : (typeof d.distance === "number" ? d.distance : null);
+      return {
+        ...d,
+        status,
+        distance_m: dist
+      };
+    });
+  }
+
+  function renderFleetList(vehiclesMap, deliveries) {
+    const entries = Object.entries(vehiclesMap || {});
+    if (!entries.length) {
+      fleetEl.innerHTML = `<div class="small">Nema vozila u state.json.</div>`;
+      return;
+    }
+
+    const byVehicle = new Map();
+    for (const d of (deliveries || [])) {
+      const v = d.vehicle || "";
+      if (!byVehicle.has(v)) byVehicle.set(v, []);
+      byVehicle.get(v).push(d);
+    }
+    for (const [v, arr] of byVehicle.entries()) {
+      arr.sort((a,b) => (b.finished_ts || 0) - (a.finished_ts || 0));
+    }
+
+    entries.sort((a,b) => String(a[0]).localeCompare(String(b[0])));
+
+    let html = "";
+    for (const [jid, v] of entries) {
+      const busy = !!v.busy;
+      const cur = v.task_id || "";
+      const qList = Array.isArray(v.queue) ? v.queue : null;
+      const qLen = (typeof v.queue_len === "number") ? v.queue_len : (qList ? qList.length : 0);
+
+      const badge = busy
+        ? `<span class="badge red">BUSY</span>`
+        : `<span class="badge green">FREE</span>`;
+
+      const inProgress = cur
+        ? `<div class="sub">U tijeku: <span class="chip blue mono">${escapeHtml(cur)}</span></div>`
+        : `<div class="sub">U tijeku: <span class="badge gray">—</span></div>`;
+
+      let queueHtml = "";
+      if (qList && qList.length) {
+        const chips = qList.map(t => `<span class="chip mono">${escapeHtml(t)}</span>`).join("");
+        queueHtml = `<div class="sub">U redu (${qList.length}): <span class="chips">${chips}</span></div>`;
+      } else {
+        queueHtml = `<div class="sub">U redu (${qLen}): <span class="badge gray">—</span></div>`;
+      }
+
+      const delArr = byVehicle.get(jid) || [];
+      const lastN = delArr.slice(0, 3);
+      let deliveredHtml = "";
+      if (lastN.length) {
+        const chips = lastN.map(d => {
+          const onTime = d.status === "ON_TIME";
+          const c = onTime ? "green" : "red";
+          return `<span class="chip ${c} mono" title="lateness ${fmtSec(+d.lateness_sec)}">${escapeHtml(d.task_id)}</span>`;
+        }).join("");
+        deliveredHtml = `<div class="sub">Dostavljeno (zadnje 3): <span class="chips">${chips}</span></div>`;
+      } else {
+        deliveredHtml = `<div class="sub">Dostavljeno: <span class="badge gray">—</span></div>`;
+      }
+
+      html += `
+        <div class="row">
+          <div class="hdr">
+            <div class="jid mono">${escapeHtml(shortJid(jid))}</div>
+            <div>${badge}</div>
+          </div>
+          ${inProgress}
+          ${queueHtml}
+          ${deliveredHtml}
+        </div>
+      `;
+    }
+
+    fleetEl.innerHTML = html;
+  }
+
+  function setMarkerLatLngSmooth(jid, marker, targetLatLng) {
+    if (!smoothMovement()) {
+      marker.setLatLng(targetLatLng);
+      return;
+    }
+    const now = performance.now();
+    const cur = marker.getLatLng();
+    const from = [cur.lat, cur.lng];
+    const to = [targetLatLng[0], targetLatLng[1]];
+    animState.set(jid, { marker, from, to, t0: now, durMs: ANIM_DUR_MS });
+  }
+
+  function animate() {
+    const now = performance.now();
+    for (const [jid, st] of animState.entries()) {
+      const { marker, from, to, t0, durMs } = st;
+      const t = Math.min(1, Math.max(0, (now - t0) / durMs));
+     
+      const e = 1 - (1 - t) * (1 - t);
+      const lat = from[0] + (to[0] - from[0]) * e;
+      const lon = from[1] + (to[1] - from[1]) * e;
+      marker.setLatLng([lat, lon]);
+      if (t >= 1) animState.delete(jid);
+    }
+    requestAnimationFrame(animate);
+  }
+  requestAnimationFrame(animate);
+
+
+  async function tick() {
+    try {
+      const res = await fetch('state.json?_=' + Date.now());
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const state = await res.json();
+
+      
+      const tsVal = (typeof state.updated_ts === "number") ? state.updated_ts
+                  : (typeof state.ts === "number" ? state.ts : null);
+      const tsStr = tsVal ? new Date(tsVal * 1000).toLocaleTimeString() : '—';
+
+      const task = normalizeTask(state);
+      const vehicles = normalizeVehicles(state);
+      const deliveries = normalizeDeliveries(state);
+
+      const nVehicles = Object.keys(vehicles).length;
+      const taskPart = task ? `task: ${task.task_id || "—"}` : 'task: —';
+      const winner = task && task.winner ? task.winner : '';
+      const winnerPart = winner ? ` | winner: ${winner}` : '';
+
+      document.getElementById('status').innerText =
+        `ts: ${tsStr} | vehicles: ${nVehicles} | ${taskPart}${winnerPart}`;
+
+      renderFleetList(vehicles, deliveries);
+
+      const bounds = [];
+
+      
+      for (const [jid, v] of Object.entries(vehicles)) {
+        const lat = (typeof v.lat === "number") ? v.lat : (Array.isArray(v.pos) ? +v.pos[0] : NaN);
+        const lon = (typeof v.lon === "number") ? v.lon : (Array.isArray(v.pos) ? +v.pos[1] : NaN);
+        if (!isFinite(lat) || !isFinite(lon)) continue;
+
+        const busy = !!v.busy;
+        const taskId = v.task_id || '';
+        const q = (typeof v.queue_len === 'number') ? v.queue_len : null;
+        const isWinner = !!(winner && jid === winner);
+
+        bounds.push([lat, lon]);
+
+        const popup =
+          `<b class="mono">${escapeHtml(jid)}</b>` +
+          (isWinner ? ` <span class="badge blue">WINNER</span>` : ``) +
+          `<br>busy: <b>${busy}</b>` +
+          (taskId ? `<br>task: <b class="mono">${escapeHtml(taskId)}</b>` : ``) +
+          (Array.isArray(v.queue) ? `<br>queue: <b>${v.queue.length}</b>` : (q !== null ? `<br>queue: <b>${q}</b>` : ``));
+
+        if (!vehicleMarkers.has(jid)) {
+          const m = L.circleMarker([lat, lon], makeVehicleStyle(busy, isWinner))
+            .addTo(map)
+            .bindPopup(popup);
+          vehicleMarkers.set(jid, m);
+        } else {
+          const m = vehicleMarkers.get(jid);
+          setMarkerLatLngSmooth(jid, m, [lat, lon]);
+          m.setStyle(makeVehicleStyle(busy, isWinner));
+          m.setPopupContent(popup);
+        }
+      }
+
+      
+      for (const jid of Array.from(vehicleMarkers.keys())) {
+        if (!vehicles[jid]) {
+          map.removeLayer(vehicleMarkers.get(jid));
+          vehicleMarkers.delete(jid);
+          animState.delete(jid);
+        }
+      }
+
+      
+      if (task && task.pickup_ll && task.dropoff_ll) {
+        const p = task.pickup_ll;
+        const d = task.dropoff_ll;
+        bounds.push(p); bounds.push(d);
+
+        const winBadge = task.winner ? `<br>winner: <b class="mono">${escapeHtml(task.winner)}</b>` : '';
+
+        
+        const pickupIco = squareIcon("#f1c40f");
+        if (!pickupMarker) pickupMarker = L.marker(p, { icon: pickupIco }).addTo(map);
+        pickupMarker.setLatLng(p); pickupMarker.setIcon(pickupIco);
+        pickupMarker.bindPopup(`<b>PICKUP</b><br>task: <b class="mono">${escapeHtml(task.task_id || "")}</b>${winBadge}`);
+
+        
+        const dropoffIco = triangleIcon("#8e44ad");
+        if (!dropoffMarker) dropoffMarker = L.marker(d, { icon: dropoffIco }).addTo(map);
+        dropoffMarker.setLatLng(d); dropoffMarker.setIcon(dropoffIco);
+        dropoffMarker.bindPopup(`<b>DROPOFF</b><br>task: <b class="mono">${escapeHtml(task.task_id || "")}</b>${winBadge}`);
+
+        
+        if (!showRoutes()) {
+          if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+        } else {
+          if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+          if (Array.isArray(task.route_ll) && task.route_ll.length >= 2) {
+            const routeColor = task.winner ? colorForVehicle(task.winner) : "#2980b9";
+            routeLine = L.polyline(task.route_ll, {
+              color: routeColor,
+              weight: task.winner ? 6 : 5,
+              opacity: task.winner ? 0.9 : 0.75
+            }).addTo(map);
+
+            routeLine.bindPopup(
+              `<b>ROUTE</b><br>task: <b class="mono">${escapeHtml(task.task_id || "")}</b>` +
+              (task.winner ? `<br>winner: <b class="mono">${escapeHtml(task.winner)}</b>` : `<br>winner: —`)
+            );
+
+            for (const ll of task.route_ll) bounds.push(ll);
+          }
+        }
+      } else {
+        if (pickupMarker) { map.removeLayer(pickupMarker); pickupMarker = null; }
+        if (dropoffMarker) { map.removeLayer(dropoffMarker); dropoffMarker = null; }
+        if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+      }
+
+      
+      if (showDeliveries()) {
+        const activeDeliveryKeys = new Set();
+        for (const d of deliveries) {
+          const key = d.task_id;
+          if (!key) continue;
+          activeDeliveryKeys.add(key);
+
+          const lat = d.lat, lon = d.lon;
+          if (typeof lat !== 'number' || typeof lon !== 'number') continue;
+
+          const onTime = (d.status === "ON_TIME");
+          const fill = onTime ? "#2ecc71" : "#e74c3c";
+          const delIco = diamondIcon(fill);
+
+          const popup =
+            `<b>DELIVERED</b> ` +
+            (onTime ? `<span class="badge green">ON_TIME</span>` : `<span class="badge red">LATE</span>`) +
+            `<br>task: <b class="mono">${escapeHtml(d.task_id)}</b>` +
+            `<br>vehicle: <b class="mono">${escapeHtml(shortJid(d.vehicle || '—'))}</b>` +
+            `<br>lateness: <b>${fmtSec(+d.lateness_sec)}</b>` +
+            (typeof d.distance_m === 'number' ? `<br>dist: <b>${(+d.distance_m).toFixed(0)}m</b>` : '');
+
+          if (!deliveryMarkers.has(key)) {
+            const m = L.marker([lat, lon], { icon: delIco }).addTo(map);
+            m.bindPopup(popup);
+            deliveryMarkers.set(key, m);
+          } else {
+            const m = deliveryMarkers.get(key);
+            m.setLatLng([lat, lon]);
+            m.setIcon(delIco);
+            m.setPopupContent(popup);
+          }
+
+          bounds.push([lat, lon]);
+        }
+
+        for (const key of Array.from(deliveryMarkers.keys())) {
+          if (!activeDeliveryKeys.has(key)) {
+            map.removeLayer(deliveryMarkers.get(key));
+            deliveryMarkers.delete(key);
+          }
+        }
+      }
+
+      
+      if (!firstFitDone && bounds.length >= 2) {
+        map.fitBounds(bounds, {padding: [30, 30]});
+        firstFitDone = true;
+      }
+
+    } catch (e) {
+      document.getElementById('status').innerText = 'Greška: ' + (e && e.message ? e.message : String(e));
+      fleetEl.innerHTML = `<div class="small">Čekam state.json…</div>`;
+    }
+  }
+
+  tick();
+  setInterval(tick, 250);
+</script>
+</body>
+</html>
+

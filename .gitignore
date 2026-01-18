@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtualenv
+.venv/
+
+# Logs
+*.log
+awards.log
+
+# Data / outputs (results, plots)
+*.csv
+*.png
+
+# Local runtime state
+map_viewer/state.json
+
+# DB/cache
+server.db
+cache/
